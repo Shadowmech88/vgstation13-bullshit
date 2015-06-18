@@ -31,6 +31,18 @@ var/list/camera_names=list()
 	var/alarm_on = 0
 	var/busy = 0
 
+/obj/machinery/camera/update_icon()
+	var/EMPd = stat & EMPED
+	var/deactivated = !status
+	var/camtype = isXRay() ? "xraycam" : "camera" // Thanks to Krutchen for the icons.
+
+	if (deactivated)
+		icon_state = "[camtype]1"
+	else if (EMPd)
+		icon_state = "[camtype]emp"
+	else
+		icon_state = "[camtype]"
+
 /obj/machinery/camera/New()
 	wires = new(src)
 
@@ -61,27 +73,29 @@ var/list/camera_names=list()
 	..()
 
 /obj/machinery/camera/Destroy()
-	if(wires)
-		wires.Destroy()
-		wires = null
-
+	deactivate(null, 0) //kick anyone viewing out
+	if(assembly)
+		qdel(assembly)
+		assembly = null
+	wires = null
+	cameranet.removeCamera(src) //Will handle removal from the camera network and the chunks, so we don't need to worry about that
 	..()
 
 /obj/machinery/camera/emp_act(severity)
 	if(!isEmpProof())
 		if(prob(100/severity))
-			icon_state = "[initial(icon_state)]emp"
 			var/list/previous_network = network
 			network = list()
 			cameranet.removeCamera(src)
 			stat |= EMPED
-			SetLuminosity(0)
+			set_light(0)
 			triggerCameraAlarm()
+			update_icon()
 			spawn(900)
 				network = previous_network
-				icon_state = initial(icon_state)
 				stat &= ~EMPED
 				cancelCameraAlarm()
+				update_icon()
 				if(can_use())
 					cameranet.addCamera(src)
 			for(var/mob/O in mob_list)
@@ -102,7 +116,7 @@ var/list/camera_names=list()
 	return
 
 /obj/machinery/camera/blob_act()
-	del(src)
+	qdel(src)
 	return
 
 /obj/machinery/camera/proc/setViewRange(var/num = 7)
@@ -117,10 +131,12 @@ var/list/camera_names=list()
 /obj/machinery/camera/attack_paw(mob/living/carbon/alien/humanoid/user as mob)
 	if(!istype(user))
 		return
+	if(!status)
+		return
 	status = 0
+	update_icon()
 	visible_message("<span class='warning'>\The [user] slashes at [src]!</span>")
 	playsound(get_turf(src), 'sound/weapons/slash.ogg', 100, 1)
-	icon_state = "[initial(icon_state)]1"
 	add_hiddenprint(user)
 	deactivate(user,0)
 
@@ -138,13 +154,53 @@ var/list/camera_names=list()
 	else if(istype(W, /obj/item/weapon/weldingtool) && wires.CanDeconstruct())
 		if(weld(W, user))
 			if(assembly)
-				assembly.loc = src.loc
 				assembly.state = 1
-			del(src)
+				assembly.loc = src.loc
+				assembly = null
 
+			qdel(src)
+
+	// Upgrades!
+	else if(is_type_in_list(W, assembly.possible_upgrades)) // Is a possible upgrade
+		if (is_type_in_list(W, assembly.upgrades))
+			user << "The camera already has \a [W] inside!"
+			return
+		if (!panel_open)
+			user << "You can't reach into the camera's circuitry while the maintenance panel is closed."
+			return
+		if (!wires.CanDeconstruct())
+			user << "You can't reach into the camera's circuitry with the wires on the way."
+			return
+		user << "You attach the [W] into the camera's inner circuits."
+		assembly.upgrades += W
+		user.drop_item(W, src)
+		update_icon()
+		return
+
+	// Taking out upgrades
+	else if(iscrowbar(W))
+		if (!panel_open)
+			user << "You can't reach into the camera's circuitry while the maintenance panel is closed."
+			return
+		if (!wires.CanDeconstruct())
+			user << "You can't reach into the camera's circuitry with the wires on the way."
+			return
+		if (assembly.upgrades.len)
+			var/obj/U = locate(/obj) in assembly.upgrades
+			if(U)
+				user << "You unattach \the [U] from the camera."
+				playsound(get_turf(src), 'sound/items/Crowbar.ogg', 50, 1)
+				U.loc = get_turf(src)
+				assembly.upgrades -= U
+				update_icon()
+			return
+		else //Camera deconned, no upgrades
+			user << "The camera is firmly welded to the wall." //User might be trying to deconstruct the camera with a crowbar, let them know what's wrong
+			return
 
 	// OTHER
 	else if ((istype(W, /obj/item/weapon/paper) || istype(W, /obj/item/device/pda)) && isliving(user))
+		user.delayNextAttack(5)
 		var/mob/living/U = user
 		var/obj/item/weapon/paper/X = null
 		var/obj/item/device/pda/P = null
@@ -187,6 +243,7 @@ var/list/camera_names=list()
 /obj/machinery/camera/proc/deactivate(user as mob, var/choice = 1)
 	if(choice==1)
 		status = !( src.status )
+		update_icon()
 		if (!(src.status))
 			if(user)
 				visible_message("<span class='warning'>[user] has deactivated [src]!</span>")
@@ -194,7 +251,6 @@ var/list/camera_names=list()
 			else
 				visible_message("<span class='warning'> \The [src] deactivates!</span>")
 			playsound(get_turf(src), 'sound/items/Wirecutter.ogg', 100, 1)
-			icon_state = "[initial(icon_state)]1"
 			add_hiddenprint(user)
 		else
 			if(user)
@@ -203,7 +259,6 @@ var/list/camera_names=list()
 			else
 				visible_message("<span class='warning'> \the [src] reactivates!</span>")
 			playsound(get_turf(src), 'sound/items/Wirecutter.ogg', 100, 1)
-			icon_state = initial(icon_state)
 			add_hiddenprint(user)
 	// now disconnect anyone using the camera
 	//Apparently, this will disconnect anyone even if the camera was re-activated.
@@ -219,13 +274,13 @@ var/list/camera_names=list()
 /obj/machinery/camera/proc/triggerCameraAlarm()
 	alarm_on = 1
 	for(var/mob/living/silicon/S in mob_list)
-		S.triggerAlarm("Camera", get_area(src), list(src), src)
+		S.triggerAlarm("Camera", areaMaster, list(src), src)
 
 
 /obj/machinery/camera/proc/cancelCameraAlarm()
 	alarm_on = 0
 	for(var/mob/living/silicon/S in mob_list)
-		S.cancelAlarm("Camera", get_area(src), list(src), src)
+		S.cancelAlarm("Camera", areaMaster, list(src), src)
 
 /obj/machinery/camera/proc/can_use()
 	if(!status)
@@ -240,25 +295,18 @@ var/list/camera_names=list()
 	if(isXRay())
 		see = range(view_range, pos)
 	else
-		see = hear(view_range, pos)
+		see = get_hear(view_range, pos)
 	return see
 
 /atom/proc/auto_turn()
 	//Automatically turns based on nearby walls.
 	var/turf/simulated/wall/T = null
-	for(var/i = 1, i <= 8; i += i)
-		T = get_ranged_target_turf(src, i, 1)
-		if(istype(T))
-			//If someone knows a better way to do this, let me know. -Giacom
-			switch(i)
-				if(NORTH)
-					src.dir = SOUTH
-				if(SOUTH)
-					src.dir = NORTH
-				if(WEST)
-					src.dir = EAST
-				if(EAST)
-					src.dir = WEST
+
+	for (var/direction in cardinal)
+		T = get_ranged_target_turf(src, direction, 1)
+
+		if (istype(T))
+			dir = reverse_direction(direction)
 			break
 
 //Return a working camera that can see a given mob
@@ -291,7 +339,7 @@ var/list/camera_names=list()
 	playsound(get_turf(src), 'sound/items/Welder.ogg', 50, 1)
 	WT.eyecheck(user)
 	busy = 1
-	if(do_after(user, 100))
+	if(do_after(user, src, 100))
 		busy = 0
 		if(!WT.isOn())
 			return 0

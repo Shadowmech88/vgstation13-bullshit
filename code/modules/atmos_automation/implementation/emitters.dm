@@ -29,11 +29,11 @@
 			return 1
 		if(href_list["set_subject"])
 			var/list/emitters=list()
-			for(var/obj/machinery/power/emitter/E in machines)
+			for(var/obj/machinery/power/emitter/E in power_machines)
 				if(!isnull(E.id_tag) && E.frequency == parent.frequency)
 					emitters|=E.id_tag
 			if(emitters.len==0)
-				usr << "<span class='warning'>Unable to find any digital valves on this frequency.</span>"
+				usr << "<span class='warning'>Unable to find any emitters on this frequency.</span>"
 				return
 			emitter = input("Select an emitter:", "Emitter", emitter) as null|anything in emitters
 			parent.updateUsrDialog()

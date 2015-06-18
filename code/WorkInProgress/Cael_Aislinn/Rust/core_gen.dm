@@ -61,7 +61,6 @@ max volume of plasma storeable by the field = the total volume of a number of ti
 	idle_power_usage = 50
 	active_power_usage = 500	//multiplied by field strength
 	var/cached_power_avail = 0
-	directwired = 1
 	anchored = 0
 
 	var/locked = 1
@@ -88,10 +87,8 @@ max volume of plasma storeable by the field = the total volume of a number of ti
 		switch(state)
 			if(1)
 				connect_to_network()
-				src.directwired = 1
 			if(2)
 				disconnect_from_network()
-				src.directwired = 0
 		return 1
 	return -1
 
@@ -99,7 +96,7 @@ max volume of plasma storeable by the field = the total volume of a number of ti
 	if(!emagged)
 		locked = 0
 		emagged = 1
-		user.visible_message("[user.name] emags the [src.name].","\red You short out the lock.")
+		user.visible_message("[user.name] emags the [src.name].","<span class='warning'>You short out the lock.</span>")
 		return
 
 /obj/machinery/power/rust_core/attackby(obj/item/W, mob/user)
@@ -109,7 +106,7 @@ max volume of plasma storeable by the field = the total volume of a number of ti
 
 	if(istype(W, /obj/item/weapon/card/id) || istype(W, /obj/item/device/pda))
 		if(emagged)
-			user << "\red The lock seems to be broken"
+			user << "<span class='warning'>The lock seems to be broken</span>"
 			return
 		if(src.allowed(user))
 			if(owned_field)
@@ -117,9 +114,9 @@ max volume of plasma storeable by the field = the total volume of a number of ti
 				user << "The controls are now [src.locked ? "locked." : "unlocked."]"
 			else
 				src.locked = 0 //just in case it somehow gets locked
-				user << "\red The controls can only be locked when the [src] is online"
+				user << "<span class='warning'>The controls can only be locked when the [src] is online</span>"
 		else
-			user << "\red Access denied."
+			user << "<span class='warning'>Access denied.</span>"
 		return
 
 /obj/machinery/power/rust_core/attack_ai(mob/user)
@@ -183,6 +180,7 @@ max volume of plasma storeable by the field = the total volume of a number of ti
 	user.set_machine(src)
 
 /obj/machinery/power/rust_core/Topic(href, href_list)
+	if(..()) return 1
 	if(href_list["str"])
 		var/dif = text2num(href_list["str"])
 		field_strength = min(max(field_strength + dif, MIN_FIELD_STR), MAX_FIELD_STR)

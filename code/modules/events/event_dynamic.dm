@@ -2,7 +2,7 @@ var/list/event_last_fired = list()
 
 //Always triggers an event when called, dynamically chooses events based on job population
 /proc/spawn_dynamic_event()
-	if(!config.allow_random_events)
+	if(!config.allow_random_events || map && map.dorf)
 		return
 
 	var/minutes_passed = world.time/600
@@ -10,6 +10,10 @@ var/list/event_last_fired = list()
 
 	if(minutes_passed < roundstart_delay) //Self-explanatory
 		message_admins("Too early to trigger random event, aborting.")
+		return
+
+	if(universe.name != "Normal")
+		message_admins("Universe isn't normal, aborting random event spawn.")
 		return
 
 	var/list/active_with_role = number_active_with_role()
@@ -43,7 +47,7 @@ var/list/event_last_fired = list()
 
 	if(active_with_role["AI"] > 0 || active_with_role["Cyborg"] > 0)
 		possibleEvents[/datum/event/ionstorm] = 30
-	//possibleEvents[/datum/event/grid_check] = 20 //May cause lag
+	possibleEvents[/datum/event/grid_check] = 20 //May cause lag
 	possibleEvents[/datum/event/electrical_storm] = 10
 	possibleEvents[/datum/event/wallrot] = 30
 
@@ -121,12 +125,12 @@ var/list/event_last_fired = list()
 
 		if(istype(M, /mob/living/silicon/robot) && M:module && M:module.name == "engineering robot module")
 			active_with_role["Engineer"]++
-		if(M.mind.assigned_role in list("Chief Engineer", "Station Engineer"))
+		if(M.mind.assigned_role in engineering_positions)
 			active_with_role["Engineer"]++
 
 		if(istype(M, /mob/living/silicon/robot) && M:module && M:module.name == "medical robot module")
 			active_with_role["Medical"]++
-		if(M.mind.assigned_role in list("Chief Medical Officer", "Medical Doctor"))
+		if(M.mind.assigned_role in medical_positions)
 			active_with_role["Medical"]++
 
 		if(istype(M, /mob/living/silicon/robot) && M:module && M:module.name == "security robot module")
@@ -134,7 +138,7 @@ var/list/event_last_fired = list()
 		if(M.mind.assigned_role in security_positions)
 			active_with_role["Security"]++
 
-		if(M.mind.assigned_role in list("Research Director", "Scientist"))
+		if(M.mind.assigned_role in science_positions)
 			active_with_role["Scientist"]++
 
 		if(M.mind.assigned_role == "AI")

@@ -5,20 +5,30 @@
 var/const/E		= 2.71828183
 var/const/Sqrt2	= 1.41421356
 
+/* //All point fingers and laugh at this joke of a list, I even heard using sqrt() is faster than this list lookup, honk.
 // List of square roots for the numbers 1-100.
 var/list/sqrtTable = list(1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5,
                           5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7,
                           7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
                           8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10)
+*/
 
 /proc/Atan2(x, y)
-	if(!x && !y) return 0
-	var/a = arccos(x / sqrt(x*x + y*y))
-	return y >= 0 ? a : -a
+	if (!x && !y)
+		return 0
+
+	var/invcos = arccos(x / sqrt(x * x + y * y))
+	return y >= 0 ? invcos : -invcos
+
+proc/arctan(x)
+	var/y=arcsin(x/sqrt(1+x*x))
+	return y
 
 /proc/Ceiling(x)
 	return -round(-x)
 
+//Moved to macros.dm to reduce pure calling overhead, this was being called shitloads, like, most calls of all procs.
+/*
 /proc/Clamp(const/val, const/min, const/max)
 	if (val <= min)
 		return min
@@ -27,6 +37,7 @@ var/list/sqrtTable = list(1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 
 		return max
 
 	return val
+*/
 
 // cotangent
 /proc/Cot(x)
@@ -160,3 +171,8 @@ var/list/sqrtTable = list(1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 
 		return (k2*dx) + (k1*dy)
 #undef k1
 #undef k2
+
+//Checks if something's a power of 2, to check bitflags.
+//Thanks to wwjnc for this.
+/proc/test_bitflag(var/bitflag)
+	return bitflag != 0 && !(bitflag & (bitflag - 1))

@@ -2,8 +2,7 @@
 	name = "proximity sensor"
 	desc = "Used for scanning and alerting when someone enters a certain proximity."
 	icon_state = "prox"
-	m_amt = 800
-	g_amt = 200
+	starting_materials = list(MAT_IRON = 800, MAT_GLASS = 200)
 	w_type = RECYK_ELECTRONIC
 	origin_tech = "magnets=1"
 
@@ -92,7 +91,7 @@
 
 
 	update_icon()
-		overlays.Cut()
+		overlays.len = 0
 		attached_overlays = list()
 		if(timing)
 			overlays += "prox_timing"
@@ -116,7 +115,7 @@
 
 	interact(mob/user as mob)//TODO: Change this to the wires thingy
 		if(!secured)
-			user.show_message("\red The [name] is unsecured!")
+			user.show_message("<span class='warning'>The [name] is unsecured!</span>")
 			return 0
 		var/second = time % 60
 		var/minute = (time - second) / 60

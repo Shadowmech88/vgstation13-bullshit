@@ -13,13 +13,14 @@
 	speak_chance = 1
 	turns_per_move = 5
 	see_in_dark = 6
-	meat_type = /obj/item/weapon/reagent_containers/food/snacks/bearmeat
+	meat_type = /obj/item/weapon/reagent_containers/food/snacks/meat/bearmeat
 	response_help  = "pets"
 	response_disarm = "gently pushes aside"
 	response_harm   = "hits"
 	stop_automated_movement_when_pulled = 0
 	maxHealth = 60
 	health = 60
+	attacktext = "mauls"
 	melee_damage_lower = 20
 	melee_damage_upper = 30
 
@@ -128,7 +129,7 @@
 	..(5)
 
 /mob/living/simple_animal/hostile/bear/AttackingTarget()
-	emote( pick( list("slashes at [target]", "bites [target]") ) )
+	. = ..()
 
 	var/damage = rand(20,30)
 

@@ -2,6 +2,7 @@
 	name = "mineral wall"
 	desc = "This shouldn't exist"
 	icon_state = ""
+	explosion_block = 1
 	var/last_event = 0
 	var/active = null
 
@@ -29,6 +30,7 @@
 	icon_state = "diamond0"
 	walltype = "diamond"
 	mineral = "diamond"
+	explosion_block = 3
 
 /turf/simulated/wall/mineral/clown
 	name = "bananium wall"
@@ -43,6 +45,7 @@
 	icon_state = "sandstone0"
 	walltype = "sandstone"
 	mineral = "sandstone"
+	explosion_block = 0
 
 /turf/simulated/wall/mineral/uranium
 	name = "uranium wall"
@@ -50,6 +53,7 @@
 	icon_state = "uranium0"
 	walltype = "uranium"
 	mineral = "uranium"
+	explosion_block = 2
 
 /turf/simulated/wall/mineral/uranium/proc/radiate()
 	if(!active)
@@ -84,8 +88,8 @@
 	mineral = "plasma"
 
 /turf/simulated/wall/mineral/plasma/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(is_hot(W) > 300)//If the temperature of the object is over 300, then ignite
-		ignite(is_hot(W))
+	if(W.is_hot() > 300)//If the temperature of the object is over 300, then ignite
+		ignite(W.is_hot())
 		return
 	..()
 

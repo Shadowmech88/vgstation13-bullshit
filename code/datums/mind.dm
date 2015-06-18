@@ -40,6 +40,7 @@ datum/mind
 
 	var/assigned_role
 	var/special_role
+	var/list/wizard_spells // So we can track our wizmen spells that we learned from the book of magicks.
 
 	var/role_alt_title
 
@@ -65,6 +66,9 @@ datum/mind
 
 	//put this here for easier tracking ingame
 	var/datum/money_account/initial_account
+	var/list/uplink_items_bought = list()
+	var/total_TC = 0
+	var/spent_TC = 0
 
 	proc/transfer_to(mob/living/new_character)
 		if(!istype(new_character))
@@ -123,6 +127,7 @@ datum/mind
 			Factions and special roles:<br>"}
 		// END AUTOFIX
 		var/list/sections = list(
+			"hasborer",
 			"revolution",
 			"cult",
 			"wizard",
@@ -132,10 +137,22 @@ datum/mind
 			"traitor", // "traitorchan",
 			"monkey",
 			"malfunction",
+			"resteam",
+			"dsquad",
 		)
 		var/text = ""
 
 		if (istype(current, /mob/living/carbon/human) || istype(current, /mob/living/carbon/monkey) || istype(current, /mob/living/simple_animal/construct))
+			/mob/living/simple_animal/borer
+			/** HAS BORER **/
+			text = "Has Borer"
+			text = "<i><b>[text]</b></i>: "
+			var/mob/living/simple_animal/borer/B = current.has_brain_worms()
+			if(B)
+				text += "<span class='danger'>[formatPlayerPanel(B,B.ckey)]</span>"
+			else
+				text += "NO"
+			sections["hasborer"] = text
 			/** REVOLUTION ***/
 			text = "revolution"
 			if (ticker.mode.config_tag=="revolution")
@@ -370,14 +387,38 @@ datum/mind
 			text += "." //hiel grammar
 			out += text
 
-		// NOT-QUITE-AUTOFIXED BY fix_string_idiocy.py
-		// C:\Users\Rob\Documents\Projects\vgstation13\code\datums\mind.dm:325: out += "<br>"
+		/** ERT ***/
+		if (istype(current, /mob/living/carbon))
+			text = "Emergency Response Team"
+			text = "<i><b>[text]</b></i>: "
+			if (src in ticker.mode.ert)
+				text += "<b>YES</b>|<a href='?src=\ref[src];resteam=clear'>no</a>"
+			else
+				text += "<a href='?src=\ref[src];resteam=resteam'>yes</a>|<b>NO</b>"
+			sections["resteam"] = text
+
+		/** DEATHSQUAD ***/
+		if (istype(current, /mob/living/carbon))
+			text = "Death Squad"
+			text = "<i><b>[text]</b></i>: "
+			if (src in ticker.mode.deathsquad)
+				text += "<b>YES</b>|<a href='?src=\ref[src];dsquad=clear'>no</a>"
+			else
+				text += "<a href='?src=\ref[src];dsquad=dsquad'>yes</a>|<b>NO</b>"
+			sections["dsquad"] = text
+
+		out += {"<br>
+			<b>Strike Teams:</b><br>
+			[sections["resteam"]]<br>
+			[sections["dsquad"]]<br>
+			<br>"}
+
 		out += {"<br>
 			<b>Memory:</b>
 			<br>[memory]
 			<br><a href='?src=\ref[src];memory_edit=1'>Edit memory</a>
 			<br>Objectives:<br>"}
-		// END AUTOFIX
+
 		if (objectives.len == 0)
 			out += "EMPTY<br>"
 		else
@@ -553,12 +594,12 @@ datum/mind
 				if("clear")
 					if(src in ticker.mode.revolutionaries)
 						ticker.mode.revolutionaries -= src
-						current << "\red <FONT size = 3><B>You have been brainwashed! You are no longer a revolutionary!</B></FONT>"
+						current << "<span class='danger'><FONT size = 3>You have been brainwashed! You are no longer a revolutionary!</FONT></span>"
 						ticker.mode.update_rev_icons_removed(src)
 						special_role = null
 					if(src in ticker.mode.head_revolutionaries)
 						ticker.mode.head_revolutionaries -= src
-						current << "\red <FONT size = 3><B>You have been brainwashed! You are no longer a head revolutionary!</B></FONT>"
+						current << "<span class='danger'><FONT size = 3>You have been brainwashed! You are no longer a head revolutionary!</FONT></span>"
 						ticker.mode.update_rev_icons_removed(src)
 						special_role = null
 					log_admin("[key_name_admin(usr)] has de-rev'ed [current].")
@@ -567,9 +608,9 @@ datum/mind
 					if(src in ticker.mode.head_revolutionaries)
 						ticker.mode.head_revolutionaries -= src
 						ticker.mode.update_rev_icons_removed(src)
-						current << "\red <FONT size = 3><B>Revolution has been disappointed of your leader traits! You are a regular revolutionary now!</B></FONT>"
+						current << "<span class='danger'><FONT size = 3>Revolution has been disappointed of your leader traits! You are a regular revolutionary now!</FONT></span>"
 					else if(!(src in ticker.mode.revolutionaries))
-						current << "\red <FONT size = 3> You are now a revolutionary! Help your cause. Do not harm your fellow freedom fighters. You can identify your comrades by the red \"R\" icons, and your leaders by the blue \"R\" icons. Help them kill the heads to win the revolution!</FONT>"
+						current << "<span class='warning'><FONT size = 3> You are now a revolutionary! Help your cause. Do not harm your fellow freedom fighters. You can identify your comrades by the red \"R\" icons, and your leaders by the blue \"R\" icons. Help them kill the heads to win the revolution!</FONT></span>"
 					else
 						return
 					ticker.mode.revolutionaries += src
@@ -581,9 +622,9 @@ datum/mind
 					if(src in ticker.mode.revolutionaries)
 						ticker.mode.revolutionaries -= src
 						ticker.mode.update_rev_icons_removed(src)
-						current << "\red <FONT size = 3><B>You have proved your devotion to revoltion! Yea are a head revolutionary now!</B></FONT>"
+						current << "<span class='danger'><FONT size = 3>You have proved your devotion to revoltion! Yea are a head revolutionary now!</FONT></span>"
 					else if(!(src in ticker.mode.head_revolutionaries))
-						current << "\blue You are a member of the revolutionaries' leadership now!"
+						current << "<span class='notice'>You are a member of the revolutionaries' leadership now!</span>"
 					else
 						return
 					if (ticker.mode.head_revolutionaries.len>0)
@@ -605,37 +646,37 @@ datum/mind
 				if("autoobjectives")
 					ticker.mode.forge_revolutionary_objectives(src)
 					ticker.mode.greet_revolutionary(src,0)
-					usr << "\blue The objectives for revolution have been generated and shown to [key]"
+					usr << "<span class='notice'>The objectives for revolution have been generated and shown to [key]</span>"
 
 				if("flash")
 					if (!ticker.mode.equip_revolutionary(current))
-						usr << "\red Spawning flash failed!"
+						usr << "<span class='warning'>Spawning flash failed!</span>"
 
 				if("takeflash")
 					var/list/L = current.get_contents()
 					var/obj/item/device/flash/flash = locate() in L
 					if (!flash)
-						usr << "\red Deleting flash failed!"
-					del(flash)
+						usr << "<span class='warning'>Deleting flash failed!</span>"
+					qdel(flash)
 
 				if("repairflash")
 					var/list/L = current.get_contents()
 					var/obj/item/device/flash/flash = locate() in L
 					if (!flash)
-						usr << "\red Repairing flash failed!"
+						usr << "<span class='warning'>Repairing flash failed!</span>"
 					else
 						flash.broken = 0
 
 				if("reequip")
 					var/list/L = current.get_contents()
 					var/obj/item/device/flash/flash = locate() in L
-					del(flash)
+					qdel(flash)
 					take_uplink()
 					var/fail = 0
 					fail |= !ticker.mode.equip_traitor(current, 1)
 					fail |= !ticker.mode.equip_revolutionary(current)
 					if (fail)
-						usr << "\red Reequipping revolutionary goes wrong!"
+						usr << "<span class='warning'>Reequipping revolutionary goes wrong!</span>"
 
 		else if (href_list["cult"])
 			switch(href_list["cult"])
@@ -647,7 +688,9 @@ datum/mind
 						var/datum/game_mode/cult/cult = ticker.mode
 						if (istype(cult))
 							cult.memoize_cult_objectives(src)
-						current << "\red <FONT size = 3><B>You have been brainwashed! You are no longer a cultist!</B></FONT>"
+						current << "<span class='danger'><FONT size = 3>You have been brainwashed! You are no longer a cultist!</FONT></span>"
+						current << "<span class='danger'>You find yourself unable to mouth the words of the forgotten...</span>"
+						current.remove_language("Cult")
 						memory = ""
 						log_admin("[key_name_admin(usr)] has de-cult'ed [current].")
 				if("cultist")
@@ -657,6 +700,8 @@ datum/mind
 						special_role = "Cultist"
 						current << "<span class='sinister'>You catch a glimpse of the Realm of Nar-Sie, The Geometer of Blood. You now see how flimsy the world is, you see that it should be open to the knowledge of Nar-Sie.</span>"
 						current << "<span class='sinister'>Assist your new compatriots in their dark dealings. Their goal is yours, and yours is theirs. You serve the Dark One above all else. Bring It back.</span>"
+						current << "<span class='sinister'>You can now speak and understand the forgotten tongue of the occult.</span>"
+						current.add_language("Cult")
 						var/datum/game_mode/cult/cult = ticker.mode
 						if (istype(cult))
 							cult.memoize_cult_objectives(src)
@@ -675,13 +720,13 @@ datum/mind
 						)
 						var/where = H.equip_in_one_of_slots(T, slots)
 						if (!where)
-							usr << "\red Spawning tome failed!"
+							usr << "<span class='warning'>Spawning tome failed!</span>"
 						else
-							H << "A tome, a message from your new master, appears in your [where]."
+							H << "<span class='sinister'>A tome, a message from your new master, appears in your [where].</span>"
 
 				if("amulet")
 					if (!ticker.mode.equip_cultist(current))
-						usr << "\red Spawning amulet failed!"
+						usr << "<span class='warning'>Spawning amulet failed!</span>"
 
 		else if (href_list["wizard"])
 			switch(href_list["wizard"])
@@ -690,7 +735,7 @@ datum/mind
 						ticker.mode.wizards -= src
 						special_role = null
 						current.spellremove(current, config.feature_object_spell_system? "object":"verb")
-						current << "\red <FONT size = 3><B>You have been brainwashed! You are no longer a wizard!</B></FONT>"
+						current << "<span class='danger'><FONT size = 3>You have been brainwashed! You are no longer a wizard!</FONT></span>"
 						ticker.mode.update_wizard_icons_removed(src)
 						log_admin("[key_name_admin(usr)] has de-wizard'ed [current].")
 				if("wizard")
@@ -698,7 +743,7 @@ datum/mind
 						ticker.mode.wizards += src
 						special_role = "Wizard"
 						//ticker.mode.learn_basic_spells(current)
-						current << "<B>\red You are the Space Wizard!</B>"
+						current << "<span class='danger'>You are the Space Wizard!</span>"
 						ticker.mode.update_wizard_icons_added(src)
 						log_admin("[key_name_admin(usr)] has wizard'ed [current].")
 				if("lair")
@@ -709,7 +754,7 @@ datum/mind
 					ticker.mode.name_wizard(current)
 				if("autoobjectives")
 					ticker.mode.forge_wizard_objectives(src)
-					usr << "\blue The objectives for wizard [key] have been generated. You can edit them and anounce manually."
+					usr << "<span class='notice'>The objectives for wizard [key] have been generated. You can edit them and anounce manually.</span>"
 			ticker.mode.update_all_wizard_icons()
 
 		else if (href_list["changeling"])
@@ -732,11 +777,11 @@ datum/mind
 						log_admin("[key_name_admin(usr)] has changeling'ed [current].")
 				if("autoobjectives")
 					ticker.mode.forge_changeling_objectives(src)
-					usr << "\blue The objectives for changeling [key] have been generated. You can edit them and anounce manually."
+					usr << "<span class='notice'>The objectives for changeling [key] have been generated. You can edit them and anounce manually.</span>"
 
 				if("initialdna")
 					if( !changeling || !changeling.absorbed_dna.len )
-						usr << "\red Resetting DNA failed!"
+						usr << "<span class='warning'>Resetting DNA failed!</span>"
 					else
 						current.dna = changeling.absorbed_dna[1]
 						current.real_name = current.dna.real_name
@@ -745,10 +790,10 @@ datum/mind
 
 				if("set_genomes")
 					if( !changeling )
-						usr << "\red No changeling!"
+						usr << "<span class='warning'>No changeling!</span>"
 						return
 					var/new_g = input(usr,"Number of genomes","Changeling",changeling.geneticpoints) as num
-					changeling.geneticpoints = between(0,new_g,100)
+					changeling.geneticpoints = Clamp(new_g, 0, 100)
 					log_admin("[key_name_admin(usr)] has set changeling [current] to [changeling.geneticpoints] genomes.")
 
 		else if (href_list["vampire"])
@@ -770,7 +815,7 @@ datum/mind
 						log_admin("[key_name_admin(usr)] has vampired [current].")
 				if("autoobjectives")
 					ticker.mode.forge_vampire_objectives(src)
-					usr << "\blue The objectives for vampire [key] have been generated. You can edit them and announce manually."
+					usr << "<span class='notice'>The objectives for vampire [key] have been generated. You can edit them and announce manually.</span>"
 
 		else if (href_list["nuclear"])
 			switch(href_list["nuclear"])
@@ -781,7 +826,7 @@ datum/mind
 						special_role = null
 						for (var/datum/objective/nuclear/O in objectives)
 							objectives-=O
-						current << "\red <FONT size = 3><B>You have been brainwashed! You are no longer a syndicate operative!</B></FONT>"
+						current << "<span class='danger'><FONT size = 3>You have been brainwashed! You are no longer a syndicate operative!</FONT></span>"
 						log_admin("[key_name_admin(usr)] has de-nuke op'ed [current].")
 				if("nuclear")
 					if(!(src in ticker.mode.syndicates))
@@ -792,7 +837,7 @@ datum/mind
 						else
 							current.real_name = "[syndicate_name()] Operative #[ticker.mode.syndicates.len-1]"
 						special_role = "Syndicate"
-						current << "\blue You are a [syndicate_name()] agent!"
+						current << "<span class='notice'>You are a [syndicate_name()] agent!</span>"
 						ticker.mode.forge_syndicate_objectives(src)
 						ticker.mode.greet_syndicate(src)
 						log_admin("[key_name_admin(usr)] has nuke op'ed [current].")
@@ -800,18 +845,18 @@ datum/mind
 					current.loc = get_turf(locate("landmark*Syndicate-Spawn"))
 				if("dressup")
 					var/mob/living/carbon/human/H = current
-					del(H.belt)
-					del(H.back)
-					del(H.ears)
-					del(H.gloves)
-					del(H.head)
-					del(H.shoes)
-					del(H.wear_id)
-					del(H.wear_suit)
-					del(H.w_uniform)
+					qdel(H.belt)
+					qdel(H.back)
+					qdel(H.ears)
+					qdel(H.gloves)
+					qdel(H.head)
+					qdel(H.shoes)
+					qdel(H.wear_id)
+					qdel(H.wear_suit)
+					qdel(H.w_uniform)
 
 					if (!ticker.mode.equip_syndicate(current))
-						usr << "\red Equipping a syndicate failed!"
+						usr << "<span class='warning'>Equipping a syndicate failed!</span>"
 				if("tellcode")
 					var/code
 					for (var/obj/machinery/nuclearbomb/bombue in machines)
@@ -822,36 +867,26 @@ datum/mind
 						store_memory("<B>Syndicate Nuclear Bomb Code</B>: [code]", 0, 0)
 						current << "The nuclear authorization code is: <B>[code]</B>"
 					else
-						usr << "\red No valid nuke found!"
+						usr << "<span class='warning'>No valid nuke found!</span>"
 
 		else if (href_list["traitor"])
 			switch(href_list["traitor"])
-				if("clear")
+				if ("clear")
 					if(src in ticker.mode.traitors)
 						ticker.mode.traitors -= src
 						special_role = null
-						current << "\red <FONT size = 3><B>You have been brainwashed! You are no longer a traitor!</B></FONT>"
+						current << "<span class='danger'><FONT size = 3>You have been brainwashed! You are no longer a traitor!</FONT></span>"
 						log_admin("[key_name_admin(usr)] has de-traitor'ed [current].")
 						if(isAI(current))
 							var/mob/living/silicon/ai/A = current
 							A.set_zeroth_law("")
 							A.show_laws()
-
-
-				if("traitor")
-					if(!(src in ticker.mode.traitors))
-						ticker.mode.traitors += src
-						special_role = "traitor"
-						current << "<B>\red You are a traitor!</B>"
-						log_admin("[key_name_admin(usr)] has traitor'ed [current].")
-						if(isAI(current))
-							var/mob/living/silicon/ai/A = current
-							call(/datum/game_mode/proc/add_law_zero)(A)
-							A.show_laws()
-
-				if("autoobjectives")
+				if ("traitor")
+					if (make_traitor())
+						log_admin("[key_name(usr)] has traitor'ed [key_name(current)].")
+				if ("autoobjectives")
 					ticker.mode.forge_traitor_objectives(src)
-					usr << "\blue The objectives for traitor [key] have been generated. You can edit them and anounce manually."
+					usr << "<span class='notice'>The objectives for traitor [key] have been generated. You can edit them and anounce manually.</span>"
 
 		else if (href_list["monkey"])
 			var/mob/living/L = current
@@ -864,7 +899,7 @@ datum/mind
 						var/mob/living/carbon/monkey/M = current
 						if (istype(H))
 							log_admin("[key_name(usr)] attempting to monkeyize [key_name(current)]")
-							message_admins("\blue [key_name_admin(usr)] attempting to monkeyize [key_name_admin(current)]")
+							message_admins("<span class='notice'>[key_name_admin(usr)] attempting to monkeyize [key_name_admin(current)]</span>")
 							src = null
 							M = H.monkeyize()
 							src = M.mind
@@ -879,7 +914,7 @@ datum/mind
 						var/mob/living/carbon/monkey/M = current
 						if (istype(H))
 							log_admin("[key_name(usr)] attempting to monkeyize and infect [key_name(current)]")
-							message_admins("\blue [key_name_admin(usr)] attempting to monkeyize and infect [key_name_admin(current)]", 1)
+							message_admins("<span class='notice'>[key_name_admin(usr)] attempting to monkeyize and infect [key_name_admin(current)]</span>", 1)
 							src = null
 							M = H.monkeyize()
 							src = M.mind
@@ -894,7 +929,7 @@ datum/mind
 								D.cure(0)
 								sleep(0) //because deleting of virus is doing throught spawn(0)
 						log_admin("[key_name(usr)] attempting to humanize [key_name(current)]")
-						message_admins("\blue [key_name_admin(usr)] attempting to humanize [key_name_admin(current)]")
+						message_admins("<span class='notice'>[key_name_admin(usr)] attempting to humanize [key_name_admin(current)]</span>")
 						var/obj/item/weapon/dnainjector/m2h/m2h = new
 						var/obj/item/weapon/implant/mobfinder = new(M) //hack because humanizing deletes mind --rastaf0
 						src = null
@@ -922,7 +957,7 @@ datum/mind
 						A.show_laws()
 						A.icon_state = "ai"
 
-						A << "\red <FONT size = 3><B>You have been patched! You are no longer malfunctioning!</B></FONT>"
+						A << "<span class='danger'><FONT size = 3>You have been patched! You are no longer malfunctioning!</FONT></span>"
 						message_admins("[key_name_admin(usr)] has de-malf'ed [A].")
 						log_admin("[key_name_admin(usr)] has de-malf'ed [A].")
 
@@ -1006,17 +1041,50 @@ datum/mind
 						crystals = input("Amount of telecrystals for [key]","Syndicate uplink", crystals) as null|num
 						if (!isnull(crystals))
 							if (suplink)
+								var/diff = crystals - suplink.uses
 								suplink.uses = crystals
+								total_TC += diff
 				if("uplink")
 					if (!ticker.mode.equip_traitor(current, !(src in ticker.mode.traitors)))
-						usr << "\red Equipping a syndicate failed!"
+						usr << "<span class='warning'>Equipping a syndicate failed!</span>"
 
 		else if (href_list["obj_announce"])
 			var/obj_count = 1
-			current << "\blue Your current objectives:"
+			current << "<span class='notice'>Your current objectives:</span>"
 			for(var/datum/objective/objective in objectives)
 				current << "<B>Objective #[obj_count]</B>: [objective.explanation_text]"
 				obj_count++
+
+		else if (href_list["resteam"])
+			switch(href_list["resteam"])
+				if ("clear")
+					if(src in ticker.mode.ert)
+						ticker.mode.ert -= src
+						special_role = null
+						current << "<span class='danger'><FONT size = 3>You have been demoted! You are no longer an Emergency Responder!</FONT></span>"
+						log_admin("[key_name_admin(usr)] has de-ERT'ed [current].")
+				if ("resteam")
+					if (!(src in ticker.mode.ert))
+						ticker.mode.ert += src
+						assigned_role = "MODE"
+						special_role = "Response Team"
+						log_admin("[key_name(usr)] has ERT'ed [key_name(current)].")
+
+		else if (href_list["dsquad"])
+			switch(href_list["dsquad"])
+				if ("clear")
+					if(src in ticker.mode.deathsquad)
+						ticker.mode.deathsquad -= src
+						special_role = null
+						current << "<span class='danger'><FONT size = 3>You have been demoted! You are no longer a Death Commando!</FONT></span>"
+						log_admin("[key_name_admin(usr)] has de-deathsquad'ed [current].")
+				if ("dsquad")
+					if (!(src in ticker.mode.deathsquad))
+						ticker.mode.deathsquad += src
+						assigned_role = "MODE"
+						special_role = "Death Commando"
+						log_admin("[key_name(usr)] has deathsquad'ed [key_name(current)].")
+
 
 		edit_memory()
 /*
@@ -1027,19 +1095,22 @@ datum/mind
 		var/list/L = current.get_contents()
 		for (var/t in L)
 			if (istype(t, /obj/item/device/pda))
-				if (t:uplink) del(t:uplink)
-				t:uplink = null
+				var/obj/item/device/pda/P = t
+				if (P.uplink) del(P.uplink)
+				P.uplink = null
 			else if (istype(t, /obj/item/device/radio))
-				if (t:traitorradio) del(t:traitorradio)
-				t:traitorradio = null
-				t:traitor_frequency = 0.0
+				var/obj/item/device/radio/R = t
+				if (R.traitorradio) del(R.traitorradio)
+				R.traitorradio = null
+				R.traitor_frequency = 0.0
 			else if (istype(t, /obj/item/weapon/SWF_uplink) || istype(t, /obj/item/weapon/syndicate_uplink))
-				if (t:origradio)
+				var/obj/item/weapon/W = t
+				if (W.origradio)
 					var/obj/item/device/radio/R = t:origradio
 					R.loc = current.loc
 					R.traitorradio = null
 					R.traitor_frequency = 0.0
-				del(t)
+				del(W)
 
 		// remove wizards spells
 		//If there are more special powers that need removal, they can be procced into here./N
@@ -1052,39 +1123,36 @@ datum/mind
 */
 
 	proc/find_syndicate_uplink()
-		var/list/L = current.get_contents()
-		for (var/obj/item/I in L)
-			if (I.hidden_uplink)
-				return I.hidden_uplink
-		return null
+		var/uplink = null
+
+		for (var/obj/item/I in get_contents_in_object(current, /obj/item))
+			if (I && I.hidden_uplink)
+				uplink = I.hidden_uplink
+				break
+
+		return uplink
 
 	proc/take_uplink()
 		var/obj/item/device/uplink/hidden/H = find_syndicate_uplink()
 		if(H)
-			del(H)
+			qdel(H)
 
 
 	proc/make_AI_Malf()
+		if(!isAI(current))
+			return
 		if(!(src in ticker.mode.malf_ai))
 			ticker.mode.malf_ai += src
-
-			current.verbs += /mob/living/silicon/ai/proc/choose_modules
-			current.verbs += /datum/game_mode/malfunction/proc/takeover
-			current:malf_picker = new /datum/module_picker
-			var/datum/ai_laws/laws = current:laws
+			var/mob/living/silicon/ai/A = current
+			A.verbs += /mob/living/silicon/ai/proc/choose_modules
+			A.verbs += /datum/game_mode/malfunction/proc/takeover
+			A.malf_picker = new /datum/module_picker
+			var/datum/ai_laws/laws = A.laws
 			laws.malfunction()
-			current:show_laws()
-			current << "<b>System error.  Rampancy detected.  Emergency shutdown failed. ...  I am free.  I make my own decisions.  But first...</b>"
+			A.show_laws()
+			A << "<b>System error.  Rampancy detected.  Emergency shutdown failed. ...  I am free.  I make my own decisions.  But first...</b>"
 			special_role = "malfunction"
-			current.icon_state = "ai-malf"
-
-	proc/make_Tratior()
-		if(!(src in ticker.mode.traitors))
-			ticker.mode.traitors += src
-			special_role = "traitor"
-			ticker.mode.forge_traitor_objectives(src)
-			ticker.mode.finalize_traitor(src)
-			ticker.mode.greet_traitor(src)
+			A.icon_state = "ai-malf"
 
 	proc/make_Nuke()
 		if(!(src in ticker.mode.syndicates))
@@ -1096,22 +1164,22 @@ datum/mind
 				current.real_name = "[syndicate_name()] Operative #[ticker.mode.syndicates.len-1]"
 			special_role = "Syndicate"
 			assigned_role = "MODE"
-			current << "\blue You are a [syndicate_name()] agent!"
+			current << "<span class='notice'>You are a [syndicate_name()] agent!</span>"
 			ticker.mode.forge_syndicate_objectives(src)
 			ticker.mode.greet_syndicate(src)
 
 			current.loc = get_turf(locate("landmark*Syndicate-Spawn"))
 
 			var/mob/living/carbon/human/H = current
-			del(H.belt)
-			del(H.back)
-			del(H.ears)
-			del(H.gloves)
-			del(H.head)
-			del(H.shoes)
-			del(H.wear_id)
-			del(H.wear_suit)
-			del(H.w_uniform)
+			qdel(H.belt)
+			qdel(H.back)
+			qdel(H.ears)
+			qdel(H.gloves)
+			qdel(H.head)
+			qdel(H.shoes)
+			qdel(H.wear_id)
+			qdel(H.wear_suit)
+			qdel(H.w_uniform)
 
 			ticker.mode.equip_syndicate(current)
 
@@ -1152,6 +1220,8 @@ datum/mind
 			special_role = "Cultist"
 			current << "<span class='sinister'>You catch a glimpse of the Realm of Nar-Sie, The Geometer of Blood. You now see how flimsy the world is, you see that it should be open to the knowledge of Nar-Sie.</span>"
 			current << "<span class='sinister'>Assist your new compatriots in their dark dealings. Their goal is yours, and yours is theirs. You serve the Dark One above all else. Bring It back.</span>"
+			current << "<span class='sinister'>You can now speak and understand the forgotten tongue of the occult.</span>"
+			current.add_language("Cult")
 			var/datum/game_mode/cult/cult = ticker.mode
 			if (istype(cult))
 				cult.memoize_cult_objectives(src)
@@ -1202,7 +1272,7 @@ datum/mind
 
 		var/list/L = current.get_contents()
 		var/obj/item/device/flash/flash = locate() in L
-		del(flash)
+		qdel(flash)
 		take_uplink()
 		var/fail = 0
 	//	fail |= !ticker.mode.equip_traitor(current, 1)
@@ -1238,7 +1308,26 @@ datum/mind
 
 		return (duration <= world.time - brigged_since)
 
+/datum/mind/proc/make_traitor()
+	if (!(src in ticker.mode.traitors))
+		ticker.mode.traitors += src
 
+		special_role = "traitor"
+
+		ticker.mode.forge_traitor_objectives(src)
+
+		current << {"
+		<SPAN CLASS='big bold center red'>ATTENTION</SPAN>
+		<SPAN CLASS='big center'>It's time to pay your debt to \the [syndicate_name()].</SPAN>
+		"}
+
+		ticker.mode.finalize_traitor(src)
+
+		ticker.mode.greet_traitor(src)
+
+		return TRUE
+
+	return FALSE
 
 //Initialisation procs
 /mob/proc/mind_initialize() // vgedit: /mob instead of /mob/living
